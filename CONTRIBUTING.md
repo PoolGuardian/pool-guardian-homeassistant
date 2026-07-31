@@ -70,3 +70,24 @@ rather than erroring. Current floors:
 | Everything baseline | 1.0.320 |
 | mDNS TXT auto-discovery, `last_run_end_reason` | 1.0.332 |
 | Last-run fields surviving a controller reboot | 1.0.334 |
+
+## Brand assets
+
+The icon lives at `custom_components/pool_guardian/brand/` — `icon.png` (256),
+`icon@2x.png` (512), and the same square artwork as `logo.png` / `logo@2x.png`.
+
+**Do not open a PR to `home-assistant/brands`.** That repository stopped
+accepting new custom integrations; since Home Assistant 2026.3 the Brands Proxy
+API serves images from the integration's own `brand/` folder, and local assets
+take priority over the CDN. HACS checks the same path. The in-repo folder is the
+whole mechanism.
+
+Assets are generated from `Save/Branding/pool-guardian-logo-1024.png` in the
+main Pool Guardian repo: trimmed to the content bounding box, scaled to fit the
+long edge, centred on a transparent square. Do not stretch the shield to fill
+the square — it is 0.86:1 and distorting a brand mark looks worse than the
+symmetric side padding.
+
+One consequence worth knowing: on Home Assistant older than 2026.3 the proxy
+does not exist, so the icon falls back to the CDN and — because we are not in
+the brands repository — renders blank. Cosmetic only.
