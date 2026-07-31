@@ -9,6 +9,16 @@ DOMAIN = "pool_guardian"
 MANUFACTURER = "Pool Guardian"
 MODEL = "Pool Monitor"
 
+# Sent as User-Agent on every request so the controller can tell which
+# integrations are talking to it. This is the whole telemetry story: the
+# signal rides a request the integration was making anyway, nothing is sent
+# anywhere new, and a controller that was never paired to the cloud still
+# reports nothing — which is the point of choosing local-only.
+#
+# Keep in lockstep with "version" in manifest.json. Nothing enforces it.
+INTEGRATION_VERSION = "1.0.0"
+USER_AGENT = f"PoolGuardian-HomeAssistant/{INTEGRATION_VERSION}"
+
 CONF_SCAN_INTERVAL = "scan_interval"
 
 # 10 s is a deliberate compromise. The device's own browser UI polls every 2 s,

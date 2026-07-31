@@ -17,6 +17,8 @@ from typing import Any
 
 import aiohttp
 
+from .const import USER_AGENT
+
 
 class PoolGuardianError(Exception):
     """Any failure talking to the controller."""
@@ -50,7 +52,7 @@ class PoolGuardianClient:
             # stdlib from 3.11, and Home Assistant is actively removing the
             # third-party dependency. Avoids declaring a requirement at all.
             async with asyncio.timeout(self._timeout):
-                resp = await self._session.get(url)
+                resp = await self._session.get(url, headers={"User-Agent": USER_AGENT})
                 resp.raise_for_status()
                 # The ESP32 sets Content-Type: application/json, but be lenient —
                 # a proxy or a captive portal in the path may not.
