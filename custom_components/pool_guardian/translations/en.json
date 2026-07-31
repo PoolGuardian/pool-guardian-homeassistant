@@ -1,0 +1,79 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Add a Pool Guardian controller",
+        "description": "Enter the IP address or hostname of your Pool Guardian controller. It must be on the same network as Home Assistant.",
+        "data": {
+          "host": "IP address or hostname"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "Pool Guardian found",
+        "description": "Do you want to add {name} at {host}?"
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach the controller. Check the address and that the controller is powered on and connected to Wi-Fi.",
+      "not_pool_guardian": "That address answered, but it is not a Pool Guardian controller."
+    },
+    "abort": {
+      "already_configured": "This controller is already set up.",
+      "cannot_connect": "Could not reach the controller.",
+      "not_pool_guardian": "That device is not a Pool Guardian controller."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Pool Guardian options",
+        "description": "How often to poll the controller. Lower values react faster but put more load on the controller, which is also handling its sensors and cloud connection.",
+        "data": {
+          "scan_interval": "Polling interval (seconds)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "state": { "name": "State" },
+      "mode": { "name": "Mode" },
+      "active_alerts": { "name": "Active alerts" },
+      "current": { "name": "Pump current" },
+      "current_avg": { "name": "Pump current average" },
+      "current_min": { "name": "Pump current minimum" },
+      "current_max": { "name": "Pump current maximum" },
+      "sensor_low_temp": { "name": "Low sensor water temperature" },
+      "sensor_high_temp": { "name": "High sensor water temperature" },
+      "sensor_low_firmware": { "name": "Low sensor firmware" },
+      "sensor_high_firmware": { "name": "High sensor firmware" },
+      "freeze_threshold_c": { "name": "Freeze threshold" },
+      "freeze_clear_c": { "name": "Freeze clear threshold" },
+      "freeze_cutoff_c": { "name": "Freeze cutoff threshold" },
+      "freeze_resume_c": { "name": "Freeze resume threshold" },
+      "last_run_duration": { "name": "Last run duration" },
+      "last_run_end_reason": { "name": "Last run end reason" },
+      "last_run_avg_current": { "name": "Last run average current" },
+      "last_run_mode": { "name": "Last run mode" },
+      "last_run_finished": { "name": "Last run finished" },
+      "rssi": { "name": "Wi-Fi signal" },
+      "uptime": { "name": "Uptime" },
+      "diagnostic_flags": { "name": "Diagnostic flags" },
+      "ip_address": { "name": "IP address" },
+      "firmware": { "name": "Controller firmware" }
+    },
+    "binary_sensor": {
+      "pump": { "name": "Pump" },
+      "sensor_low_water": { "name": "Low sensor water" },
+      "sensor_high_water": { "name": "High sensor water" },
+      "sensor_low_online": { "name": "Low sensor link" },
+      "sensor_high_online": { "name": "High sensor link" },
+      "freeze_enabled": { "name": "Freeze protection enabled" },
+      "freeze_protect_active": { "name": "Freeze protection active" },
+      "freeze_conditions_met": { "name": "Freeze warning" },
+      "freeze_lockout_active": { "name": "Freeze pump lockout" },
+      "cloud_connected": { "name": "Cloud link" }
+    }
+  }
+}

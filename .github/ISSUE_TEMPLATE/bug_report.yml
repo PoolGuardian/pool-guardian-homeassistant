@@ -1,0 +1,73 @@
+name: Bug report
+description: Something in the Home Assistant integration is not working
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This tracker is for the **Home Assistant integration only**.
+
+        For the Pool Guardian device, mobile app or your account, email
+        support@pool-guardian.net instead — nobody watching this repo can help
+        with those.
+
+  - type: input
+    id: controller_firmware
+    attributes:
+      label: Controller firmware version
+      description: >
+        Settings → Devices & Services → Pool Guardian → device page, or
+        http://<controller-ip>/json in a browser.
+      placeholder: "1.0.334"
+    validations:
+      required: true
+
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      placeholder: "2025.7.1"
+    validations:
+      required: true
+
+  - type: input
+    id: integration_version
+    attributes:
+      label: Integration version
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Debug log
+      description: |
+        Add this to `configuration.yaml`, restart, reproduce, then paste the
+        `custom_components.pool_guardian` lines. Automatically formatted as code.
+
+        ```yaml
+        logger:
+          default: warning
+          logs:
+            custom_components.pool_guardian: debug
+        ```
+      render: text
+
+  - type: textarea
+    id: endpoint
+    attributes:
+      label: Controller response (optional, very helpful)
+      description: >
+        Output of `curl http://<controller-ip>/api/sensors/live`. This is
+        read-only device state — it contains no credentials — but do redact
+        anything you would rather not share.
+      render: json

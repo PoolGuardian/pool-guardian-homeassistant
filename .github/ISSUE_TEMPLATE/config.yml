@@ -1,0 +1,10 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Pool Guardian product support
+    url: mailto:support@pool-guardian.net
+    about: >
+      Device, mobile app, subscription or account questions. This repository is
+      only the Home Assistant integration.
+  - name: Pool Guardian website
+    url: https://pool-guardian.net
+    about: Product information, setup guides and documentation.

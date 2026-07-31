@@ -1,0 +1,37 @@
+name: Feature request
+description: Suggest an entity, attribute or behaviour for the integration
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening: this integration is **read-only by design**. It will not
+        gain a switch, button or service that controls the pump. The controller
+        can drain a pool, so control stays on the authenticated paths — the
+        mobile app and the local API. Requests for pump control will be closed.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: >
+        The automation or dashboard you are trying to build, not the
+        implementation you have in mind. It often turns out an existing entity
+        already covers it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like added?
+
+  - type: checkboxes
+    id: data_available
+    attributes:
+      label: Data source
+      options:
+        - label: >
+            I have checked that the value appears in
+            `curl http://<controller-ip>/api/sensors/live` or
+            `/api/status`. (If it does not, this needs a firmware change first.)
