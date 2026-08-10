@@ -88,14 +88,15 @@ class PoolGuardianClient:
         """Rich sensor snapshot: per-sensor blocks, freeze block, alert count."""
         return await self._get("/api/sensors/live")
 
-    async def async_get_pump_history(self) -> dict[str, Any]:
-        """Last 10 pump runs, newest first.
-
-        Deliberately NOT on the fast poll loop: it serialises the whole ring
-        buffer (~2 KB) on an ESP32 that is also running an RS232 sensor loop and
-        a cloud WebSocket, and the contents only change when a run ENDS.
-        See the coordinator for when it is actually fetched.
-
-        `end_reason` requires controller firmware 1.0.332 or newer.
-        """
-        return await self._get("/api/pump-history")
+    # async_get_pump_history() removed 2026-08-09.
+    #
+    # It fetched the whole 10-run ring buffer so the coordinator could read
+    # runs[0] and discard the rest — ~2 KB serialised on the controller for
+    # ~80 bytes of usable data — and it was called on the pump's true->false
+    # edge, landing the heaviest request of the cycle exactly when the ESP32
+    # was busiest. Controller 1.0.394 carries those scalars in
+    # /api/sensors/live, so the request is no longer needed.
+    #
+    # /api/pump-history still exists on the device and still returns all 10
+    # runs. If a run LIST is ever wanted here, add it back as an explicit
+    # opt-in — not on the poll loop.

@@ -17,11 +17,36 @@ from .const import (
     DATA_LIVE,
     DATA_STATUS,
     DOMAIN,
-    HISTORY_REFRESH_EVERY_N_CYCLES,
     INFO_REFRESH_EVERY_N_CYCLES,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _last_run_from_live(live: dict[str, Any]) -> dict[str, Any]:
+    """Build the last-run dict from the live payload.
+
+    Deliberately emits the SAME key names the /api/pump-history entries used
+    (duration_sec, end_reason, ...) so nothing downstream has to change — the
+    sensor platform keeps reading exactly what it always read.
+
+    Returns {} when the controller predates 1.0.394 or has no completed run
+    yet, which the sensor platform already treats as "unknown".
+    """
+    if "last_run_duration_sec" not in live:
+        return {}
+    return {
+        "duration_sec": live.get("last_run_duration_sec"),
+        "end_reason": live.get("last_run_end_reason"),
+        "completed": live.get("last_run_completed"),
+        "end_time": live.get("last_run_end_time"),
+        "is_auto": live.get("last_run_is_auto"),
+        "freeze_protect": live.get("last_run_freeze"),
+        # The last-run current entity reads this. peak/min/anomaly_flags are
+        # not carried in the live payload -- nothing consumes them per-run and
+        # they remain in /api/pump-history if ever needed.
+        "avg_current": live.get("last_run_avg_current"),
+    }
 
 
 class PoolGuardianCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -48,7 +73,6 @@ class PoolGuardianCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # None, not False: "we have never seen the pump" is distinct from "the
         # pump was off last cycle". Seeding it False would make a controller
         # that is already pumping at HA startup look like a falling edge later.
-        self._prev_pump_active: bool | None = None
 
         super().__init__(
             hass,
@@ -97,7 +121,10 @@ class PoolGuardianCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             except PoolGuardianError as err:
                 _LOGGER.debug("Info refresh failed, keeping previous: %s", err)
 
-        await self._async_maybe_refresh_history(live)
+        # Last-run values now ride the /api/sensors/live payload the controller
+        # already returns on every poll (firmware 1.0.394+), so there is no
+        # second request and no edge to catch.
+        self._last_run = _last_run_from_live(live)
 
         return {
             DATA_LIVE: live,
@@ -106,34 +133,18 @@ class PoolGuardianCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             DATA_LAST_RUN: self._last_run,
         }
 
-    async def _async_maybe_refresh_history(self, live: dict[str, Any]) -> None:
-        """Fetch pump history only when it can have changed.
+    @staticmethod
+    def _unused_placeholder() -> None:  # pragma: no cover
+        """Removed: _async_maybe_refresh_history().
 
-        The ring buffer gains an entry when a run ENDS, so the pump's
-        true -> false transition is the exact moment worth re-reading it.
-        Polling it every cycle would re-serialise ~2 KB on the controller for
-        an answer that is usually identical.
+        It fetched /api/pump-history to read runs[0] and discard the other
+        nine — roughly 2 KB serialised on the controller for ~80 bytes of
+        usable data — and it did so on the pump's true->false EDGE, putting
+        the heaviest request of the cycle at the moment the ESP32 was
+        busiest. Controller 1.0.394 puts those scalars in /api/sensors/live,
+        so the extra request, the edge detection and the periodic safety-net
+        refetch all became unnecessary.
+
+        /api/pump-history still exists on the device and still returns all 10
+        runs — this integration simply never needed the list.
         """
-        pump_active = live.get("pump_active")
-        prev = self._prev_pump_active
-        if pump_active is not None:
-            self._prev_pump_active = bool(pump_active)
-
-        run_just_ended = prev is True and pump_active is False
-        first_fetch = self._last_run is None
-        periodic = self._cycles % HISTORY_REFRESH_EVERY_N_CYCLES == 0
-
-        if not (run_just_ended or first_fetch or periodic):
-            return
-
-        try:
-            history = await self.client.async_get_pump_history()
-        except PoolGuardianError as err:
-            # Non-fatal by design: the live data is already in hand and the
-            # last-run entities can keep their previous values.
-            _LOGGER.debug("Pump history refresh failed, keeping previous: %s", err)
-            return
-
-        runs = history.get("history") or []
-        # Firmware serialises the ring buffer newest-first.
-        self._last_run = runs[0] if runs else {}
