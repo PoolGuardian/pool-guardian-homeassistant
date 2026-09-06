@@ -39,7 +39,6 @@
     "sensor": {
       "state": { "name": "State" },
       "mode": { "name": "Mode" },
-      "active_alerts": { "name": "Active alerts" },
       "current": { "name": "Pump current" },
       "current_avg": { "name": "Pump current average" },
       "current_min": { "name": "Pump current minimum" },

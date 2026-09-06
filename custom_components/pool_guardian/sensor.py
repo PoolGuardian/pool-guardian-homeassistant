@@ -78,6 +78,25 @@ def _last_run(data: dict[str, Any]) -> dict[str, Any]:
     return data.get(DATA_LAST_RUN) or {}
 
 
+def _format_hms(seconds) -> str | None:
+    """Seconds -> HH:MM:SS. None stays None so the entity reads unknown.
+
+    Hours accumulate rather than rolling over at 24, because a run that long is
+    a fault worth seeing as "26:14:03" and not as "02:14:03".
+    """
+    if seconds is None:
+        return None
+    try:
+        total = int(round(float(seconds)))
+    except (TypeError, ValueError):
+        return None
+    if total < 0:
+        return None
+    hours, rem = divmod(total, 3600)
+    minutes, secs = divmod(rem, 60)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
 def _last_run_value(data: dict[str, Any], key: str) -> Any:
     """A field of the most recent completed run.
 
@@ -118,12 +137,21 @@ SENSORS: tuple[PoolGuardianSensorDescription, ...] = (
             else ("manual" if _status(d)["is_manual"] else "auto")
         ),
     ),
-    PoolGuardianSensorDescription(
-        key="active_alerts",
-        translation_key="active_alerts",
-        state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda d: _live(d).get("active_alerts"),
-    ),
+    # active_alerts was REMOVED here in 1.1.1. It read
+    # _live(d).get("active_alerts"), and that field does not exist: the
+    # controller dropped /api/alerts, /api/alerts/dismiss and the active_alerts
+    # count in firmware 1.0.398 ("Alerts are a cloud concern. The server owns
+    # the user-facing set"). The entity could therefore only ever report
+    # unknown, on every controller, forever.
+    #
+    # It is deleted rather than defaulted to 0. Reporting "no active alerts"
+    # from a field that does not exist would state a safety fact this
+    # integration cannot know -- worse than reporting nothing.
+    #
+    # The live replacement, if this is wanted back, is GET /api/faults: only
+    # conditions that have locked the unit and need a person, currently
+    # PUMP_NO_PROGRESS. That needs a new coordinator fetch, so it is a change
+    # in its own right rather than a rename of this one.
     # ── Pump current ────────────────────────────────────────────────────────
     PoolGuardianSensorDescription(
         key="current",
@@ -257,9 +285,19 @@ SENSORS: tuple[PoolGuardianSensorDescription, ...] = (
     PoolGuardianSensorDescription(
         key="last_run_duration",
         translation_key="last_run_duration",
-        device_class=SensorDeviceClass.DURATION,
-        native_unit_of_measurement=UnitOfTime.SECONDS,
-        value_fn=lambda d: _last_run_value(d, "duration_sec"),
+        # HH:MM:SS, not a raw second count.
+        #
+        # device_class DURATION renders the number plus its unit, so a two-hour
+        # drain read "7,011.00 s" -- technically correct and unreadable, which
+        # is the state anyone actually wants at a glance. Dropping the device
+        # class is what allows a formatted string.
+        #
+        # Nothing is lost to statistics: this description never carried a
+        # state_class, so it was not recorded as long-term statistics either
+        # way. If a graphable number is wanted later, add a second DIAGNOSTIC
+        # entity rather than reverting this one -- the readable form is the one
+        # people look at.
+        value_fn=lambda d: _format_hms(_last_run_value(d, "duration_sec")),
     ),
     PoolGuardianSensorDescription(
         key="last_run_end_reason",

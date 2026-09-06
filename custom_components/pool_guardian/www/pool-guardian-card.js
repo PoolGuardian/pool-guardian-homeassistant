@@ -23,7 +23,7 @@
  * genuinely absent.
  */
 
-const CARD_VERSION = "1.0.0";
+const CARD_VERSION = "1.1.1";
 
 /* Entity suffixes, by domain.
  *
@@ -51,7 +51,6 @@ const WANTED = {
   sensor: {
     state: "_state",
     mode: "_mode",
-    alerts: "_active_alerts",
     current: "_pump_current",
     lowTemp: "_low_sensor_water_temperature",
     controllerTemp: "_controller_temperature",
@@ -76,17 +75,24 @@ const isOn = (s) => s && s.state === "on";
 const has = (s) => s && !UNAVAILABLE.has(s.state);
 const num = (s) => (has(s) ? Number(s.state) : null);
 
-/* Seconds -> "1h 56m" / "5m 36s" / "12s". Deliberately two units at most: a
- * drain is read at a glance, and "1h 56m 03s" is three things to parse. */
-function dur(seconds) {
-  if (seconds === null || seconds === undefined || Number.isNaN(seconds)) return "—";
-  const s = Math.max(0, Math.round(Number(seconds)));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  if (h) return `${h}h ${String(m).padStart(2, "0")}m`;
-  if (m) return `${m}m ${String(sec).padStart(2, "0")}s`;
-  return `${sec}s`;
+/* Seconds -> HH:MM:SS, matching the entity. Hours accumulate past 24 rather
+ * than rolling over: a 26-hour run is a fault worth seeing as "26:14:03". */
+function hms(seconds) {
+  if (seconds === null || seconds === undefined || Number.isNaN(Number(seconds)))
+    return "—";
+  const t = Math.max(0, Math.round(Number(seconds)));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const sec = t % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+}
+
+/* The duration entity is now a formatted string, so pass it through; fall back
+ * to formatting a number for anyone still on an older integration. */
+function durText(stateObj) {
+  if (!has(stateObj)) return "—";
+  const raw = stateObj.state;
+  return /^\d+:\d{2}:\d{2}$/.test(raw) ? raw : hms(raw);
 }
 
 /* "drain_complete" -> "Drain complete". The controller's end reasons are
@@ -122,18 +128,26 @@ class PoolGuardianCard extends HTMLElement {
   }
 
   setConfig(config) {
-    if (!config || !config.device_id) {
-      // Naming the fix, not just the fault: this is the first thing a user
-      // sees if they paste the YAML from the README without editing it.
-      throw new Error(
-        "Pool Guardian card: set device_id to your controller. " +
-          "In the card editor use the device picker, or in YAML add " +
-          "device_id: <id> — copy it from Settings > Devices > your controller " +
-          "(it is in the page URL)."
-      );
+    // DO NOT THROW when device_id is missing.
+    //
+    // Home Assistant calls setConfig() to build the tile in the "Add card"
+    // picker, using getStubConfig() -- which cannot know the device yet. A
+    // throw there does not surface as a friendly message: the picker tile
+    // renders as a spinner that never resolves and cannot be clicked, so the
+    // card is unselectable and the user has no way to reach the editor at all.
+    // Observed on first install, 2026-09-06.
+    //
+    // Throwing is for config that is WRONG. "Not configured yet" is a state
+    // the card renders, not an error it raises.
+    if (config && config.device_id && typeof config.device_id !== "string") {
+      throw new Error("Pool Guardian card: device_id must be a string.");
     }
-    this._config = { show_diagnostics: true, ...config };
+    this._config = { show_diagnostics: true, ...(config || {}) };
     this._built = false;
+  }
+
+  static getConfigElement() {
+    return document.createElement("pool-guardian-card-editor");
   }
 
   set hass(hass) {
@@ -181,6 +195,19 @@ class PoolGuardianCard extends HTMLElement {
 
   _render() {
     if (!this._hass || !this._config) return;
+
+    // The picker preview and a freshly-added card both land here with no
+    // device chosen. Say what to do rather than rendering an empty shell.
+    if (!this._config.device_id) {
+      this.shadowRoot.innerHTML =
+        `<style>${STYLES}</style>` +
+        `<div class="ha-card"><div class="empty">
+           <b>Choose a controller.</b> Pick your Pool Guardian device in the card
+           editor, or set <code>device_id</code> in YAML.
+         </div></div>`;
+      return;
+    }
+
     const e = this._resolve();
 
     if (!Object.keys(e).length) {
@@ -198,11 +225,12 @@ class PoolGuardianCard extends HTMLElement {
     const lockout = isOn(e.freezeLockout);
     const highOff = e.highLink && !isOn(e.highLink);
     const lowOff = e.lowLink && !isOn(e.lowLink);
-    const alerts = num(e.alerts);
-
     // Attention beats running beats idle. A unit that is pumping AND locked
     // out is a unit you need to look at, so severity wins the tie.
-    const attention = lockout || highOff || lowOff || (alerts !== null && alerts > 0);
+    // No alert count here on purpose: the controller removed active_alerts in
+    // 1.0.398, so attention is derived from conditions the device still
+    // reports -- a freeze lockout or a sensor that stopped talking.
+    const attention = lockout || highOff || lowOff;
     const tone = attention ? "attn" : pumping ? "run" : "idle";
     const stateLabel = attention
       ? lockout
@@ -235,7 +263,7 @@ class PoolGuardianCard extends HTMLElement {
     const sub = [
       has(e.mode) ? e.mode.state : null,
       has(e.firmware) ? e.firmware.state : null,
-      has(e.uptime) ? "up " + dur(num(e.uptime)) : null,
+      has(e.uptime) ? "up " + hms(num(e.uptime)) : null,
     ]
       .filter(Boolean)
       .join(" · ");
@@ -257,8 +285,6 @@ class PoolGuardianCard extends HTMLElement {
     }
     if (highOff) alertRows.push("High sensor stopped reporting.");
     if (lowOff) alertRows.push("Low sensor stopped reporting.");
-    if (alerts !== null && alerts > 0)
-      alertRows.push(`${alerts} active alert${alerts === 1 ? "" : "s"} on the controller.`);
 
     const pumpCell = lockout
       ? `<dd class="crit">Blocked</dd>`
@@ -298,7 +324,7 @@ class PoolGuardianCard extends HTMLElement {
             <div class="kv"><dt>Current</dt>
               <dd class="${pumping ? "accent" : "dim"}">${currentVal}&nbsp;<small>A</small></dd></div>
             <div class="kv"><dt>Last run</dt>
-              <dd>${dur(num(e.lastDuration))}
+              <dd>${durText(e.lastDuration)}
                 <small>${reason(has(e.lastReason) ? e.lastReason.state : null)}</small></dd></div>
           </dl>
         </div>
@@ -500,6 +526,76 @@ const STYLES = `
   }
 `;
 
+/* Visual editor.
+ *
+ * One control, because the card has one required setting. ha-device-picker is
+ * a frontend element HA already loads on the dashboard editor, filtered to
+ * this integration so the list is the user's controllers and nothing else --
+ * a bare device_id text field would mean telling people to dig an opaque hash
+ * out of a URL.
+ */
+class PoolGuardianCardEditor extends HTMLElement {
+  setConfig(config) {
+    this._config = { ...(config || {}) };
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
+  }
+
+  _emit(config) {
+    this.dispatchEvent(
+      new CustomEvent("config-changed", {
+        detail: { config },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  _render() {
+    if (!this._hass || !this._config) return;
+    if (!this._picker) {
+      this.innerHTML = "";
+
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "display:flex;flex-direction:column;gap:12px;padding:8px 0";
+
+      this._picker = document.createElement("ha-device-picker");
+      this._picker.label = "Pool Guardian controller";
+      this._picker.includeDomains = ["sensor", "binary_sensor"];
+      // Restrict to this integration so the picker lists controllers only.
+      this._picker.deviceFilter = (device) =>
+        (device.identifiers || []).some((id) => id[0] === "pool_guardian");
+      this._picker.addEventListener("value-changed", (ev) => {
+        ev.stopPropagation();
+        this._config = { ...this._config, device_id: ev.detail.value };
+        this._emit(this._config);
+      });
+      wrap.appendChild(this._picker);
+
+      const diag = document.createElement("ha-formfield");
+      diag.label = "Show diagnostics section";
+      this._diag = document.createElement("ha-switch");
+      this._diag.addEventListener("change", () => {
+        this._config = { ...this._config, show_diagnostics: this._diag.checked };
+        this._emit(this._config);
+      });
+      diag.appendChild(this._diag);
+      wrap.appendChild(diag);
+
+      this.appendChild(wrap);
+    }
+
+    this._picker.hass = this._hass;
+    this._picker.value = this._config.device_id || "";
+    this._diag.checked = this._config.show_diagnostics !== false;
+  }
+}
+
+customElements.define("pool-guardian-card-editor", PoolGuardianCardEditor);
 customElements.define("pool-guardian-card", PoolGuardianCard);
 
 // Registers the card in the "Add card" picker.
