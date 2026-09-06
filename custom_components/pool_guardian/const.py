@@ -16,7 +16,7 @@ MODEL = "Pool Monitor"
 # reports nothing — which is the point of choosing local-only.
 #
 # Keep in lockstep with "version" in manifest.json. Nothing enforces it.
-INTEGRATION_VERSION = "1.0.1"
+INTEGRATION_VERSION = "1.1.0"
 USER_AGENT = f"PoolGuardian-HomeAssistant/{INTEGRATION_VERSION}"
 
 CONF_SCAN_INTERVAL = "scan_interval"

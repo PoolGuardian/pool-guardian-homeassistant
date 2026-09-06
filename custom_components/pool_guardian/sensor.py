@@ -165,6 +165,26 @@ SENSORS: tuple[PoolGuardianSensorDescription, ...] = (
     ),
     # ── Water sensors ───────────────────────────────────────────────────────
     PoolGuardianSensorDescription(
+        key="air_temp",
+        translation_key="air_temp",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        # NOT ambient air, despite the field name. This is a TMP112 on the
+        # controller PCB, next to the PSU and the ESP32, so it reads the BOARD
+        # and sits well above room temperature -- three deployed units read
+        # 37.2, 42.4 and 45.5 C on a normal day while operating correctly.
+        # Named "Controller temperature" for that reason: a user who sees
+        # "air temperature" reasonably concludes their pool deck is 45 C.
+        #
+        # Diagnostic category because nothing user-facing should act on it.
+        # There is deliberately no range check anywhere -- a bench threshold of
+        # 15-35 C was tried and failed every unit in the field.
+        value_fn=lambda d: _status(d).get("air_temp_c"),
+    ),
+    PoolGuardianSensorDescription(
         key="sensor_low_temp",
         translation_key="sensor_low_temp",
         device_class=SensorDeviceClass.TEMPERATURE,

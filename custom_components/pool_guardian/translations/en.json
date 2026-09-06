@@ -44,6 +44,7 @@
       "current_avg": { "name": "Pump current average" },
       "current_min": { "name": "Pump current minimum" },
       "current_max": { "name": "Pump current maximum" },
+      "air_temp": { "name": "Controller temperature" },
       "sensor_low_temp": { "name": "Low sensor water temperature" },
       "sensor_high_temp": { "name": "High sensor water temperature" },
       "sensor_low_firmware": { "name": "Low sensor firmware" },
