@@ -51,6 +51,12 @@ async def _async_register_card(hass: HomeAssistant) -> None:
     store = hass.data.setdefault(DOMAIN, {})
     if store.get(CARD_REGISTERED):
         return
+    # Claim the flag BEFORE the first await. HA sets up a pool entry and a spa
+    # entry concurrently; with the flag set only after the await below, both
+    # passed the check above, both registered, and whichever came second failed
+    # its whole setup on "route already registered" -- at random, on every HA
+    # restart. Check-and-set with no await between them is atomic on the loop.
+    store[CARD_REGISTERED] = True
 
     path = Path(__file__).parent / "www" / CARD_FILE
     if not path.is_file():
@@ -59,11 +65,17 @@ async def _async_register_card(hass: HomeAssistant) -> None:
         _LOGGER.warning("Pool Guardian card not found at %s; skipping", path)
         return
 
-    await hass.http.async_register_static_paths(
-        [StaticPathConfig(CARD_URL, str(path), cache_headers=False)]
-    )
+    try:
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(CARD_URL, str(path), cache_headers=False)]
+        )
+    except RuntimeError as err:
+        # Same principle as the missing file: a card problem must never cost
+        # the user their sensors. aiohttp raises RuntimeError for a duplicate
+        # route, which also covers anything else that already serves this URL.
+        _LOGGER.warning("Could not register Pool Guardian card at %s: %s", CARD_URL, err)
+        return
     add_extra_js_url(hass, f"{CARD_URL}?v={INTEGRATION_VERSION}")
-    store[CARD_REGISTERED] = True
     _LOGGER.debug("Registered Pool Guardian card at %s", CARD_URL)
 
 
