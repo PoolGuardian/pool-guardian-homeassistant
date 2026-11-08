@@ -87,7 +87,7 @@ def _format_hms(seconds) -> str | None:
     if seconds is None:
         return None
     try:
-        total = int(round(float(seconds)))
+        total = round(float(seconds))
     except (TypeError, ValueError):
         return None
     if total < 0:

@@ -73,7 +73,9 @@ async def _async_register_card(hass: HomeAssistant) -> None:
         # Same principle as the missing file: a card problem must never cost
         # the user their sensors. aiohttp raises RuntimeError for a duplicate
         # route, which also covers anything else that already serves this URL.
-        _LOGGER.warning("Could not register Pool Guardian card at %s: %s", CARD_URL, err)
+        _LOGGER.warning(
+            "Could not register Pool Guardian card at %s: %s", CARD_URL, err
+        )
         return
     add_extra_js_url(hass, f"{CARD_URL}?v={INTEGRATION_VERSION}")
     _LOGGER.debug("Registered Pool Guardian card at %s", CARD_URL)
